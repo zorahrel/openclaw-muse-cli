@@ -52,12 +52,15 @@ batte defaults ed entry. Nuove sessioni seguono la config.
 
 ## Limiti noti
 
-- **Niente tool OpenClaw**: serve ponte MCP (progetto a parte). Trovato nello
-  spike: `muse exec --disable-approval` toglie il blocco approvazioni; muse
-  accetta MCP via stdio e HTTP (`SessionMcpServerConfig`); OpenClaw ha un
-  runtime loopback MCP (`mcp-http.loopback-runtime`). Resta da capire:
-  endpoint/auth del loopback per backend custom, staging di `settings.json`
-  via `prepareExecution`, mapping eventi tool.
+- **Niente tool OpenClaw**: serve ponte MCP (progetto a parte). Spike 06/10:
+  `muse exec --disable-approval` toglie il blocco approvazioni; muse accetta
+  MCP via stdio e HTTP; `XDG_CONFIG_HOME` isola la config per-run (con
+  `MUSE_AUTH_PATH` alla credenziale vera); il loopback OpenClaw è
+  `http://127.0.0.1:<porta>/mcp` + grant per-turno in `OPENCLAW_MCP_TOKEN`.
+  Via pulita: quarto modo MCP nel core (upstream). Via fragile: piggyback sul
+  modo `gemini-system-settings` (scrive un file e lo espone in
+  `GEMINI_CLI_SYSTEM_SETTINGS_PATH`), traduzione in `settings.json` muse.
+  Sconsigliato di notte: 3 strati interni, si rompe agli update.
 - **Usage sempre zero**: i token viaggiano solo nel session-log su disco,
   mai sullo stdout `--json` (verificato: 30 record, zero righe token).
   Irrilevante a subscription flat.
