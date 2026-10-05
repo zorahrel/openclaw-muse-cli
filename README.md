@@ -5,9 +5,9 @@ Backend OpenClaw che esegue Muse Spark via la subscription dell'utente
 
 ## Stato
 
-Funzionante come primario chat (verificato 05/10/2026 su OpenClaw 2026.9.5):
-risposta ~5s, resume fra turni, consegna WhatsApp diretta. Non ancora a
-livello top-provider: manca il ponte MCP per i tool (vedi sotto).
+Primario chat a pari provider (verificato 06/10/2026): risposta ~5s, resume
+fra turni, consegna WhatsApp diretta, 48 tool OpenClaw via ponte MCP con
+chiamate vere e resume funzionante.
 
 ## Installazione (locale)
 
@@ -49,18 +49,23 @@ batte defaults ed entry. Nuove sessioni seguono la config.
   storico (statico, si aggiorna con reload). `promptChars` nel log è
   pre-transform: non misura il prefisso.
 - `ownsNativeCompaction: true` (le sessioni backend sono monouso).
+- Tool MCP: `bundleMcp` sul modo `gemini-system-settings` + `prepareExecution`
+  che allestisce `XDG_CONFIG_HOME` col server openclaw via **proxy stdio**
+  (`proxy.mjs`). La capture key nasce a execute-time, dopo lo staging, quindi
+  il proxy (figlio di muse) rilegge il file attempt fresco del turno,
+  identificato dal token stabile passato via argv. muse non espande `${}`
+  né eredita l'env ai server stdio (provato 06/10): niente scorciatoie.
+- Il parser mappa `tool.result` nella coppia `toolStart`+`toolResult` con
+  stesso `call_id` (lo stdout non lega il task: coppia sintetica, mai
+  riesecuzione).
 
 ## Limiti noti
 
-- **Niente tool OpenClaw**: serve ponte MCP (progetto a parte). Spike 06/10:
-  `muse exec --disable-approval` toglie il blocco approvazioni; muse accetta
-  MCP via stdio e HTTP; `XDG_CONFIG_HOME` isola la config per-run (con
-  `MUSE_AUTH_PATH` alla credenziale vera); il loopback OpenClaw è
-  `http://127.0.0.1:<porta>/mcp` + grant per-turno in `OPENCLAW_MCP_TOKEN`.
-  Via pulita: quarto modo MCP nel core (upstream). Via fragile: piggyback sul
-  modo `gemini-system-settings` (scrive un file e lo espone in
-  `GEMINI_CLI_SYSTEM_SETTINGS_PATH`), traduzione in `settings.json` muse.
-  Sconsigliato di notte: 3 strati interni, si rompe agli update.
+- **Dopo `plugins reload` riavviare il gateway** (`launchctl kickstart -k`):
+  il reload manda in pensione l'inventario plugin del loopback MCP e i
+  `tools/list` falliscono finché non si riavvia (visto 06/10, quirk upstream).
+- **Token del turno in argv del proxy**: visibile in `ps` finché gira il
+  turno; revocato a fine turno. Equivalente al file attempt su disco.
 - **Usage sempre zero**: i token viaggiano solo nel session-log su disco,
   mai sullo stdout `--json` (verificato: 30 record, zero righe token).
   Irrilevante a subscription flat.
@@ -76,5 +81,5 @@ batte defaults ed entry. Nuove sessioni seguono la config.
 ## Test
 
 ```bash
-npm test   # node test/parse.test.mjs, 7 assert su forme reali registrate
+npm test   # parse.test.mjs (25) + proxy.test.mjs (9, e2e contro finto server MCP)
 ```

@@ -1,9 +1,9 @@
 {
   "name": "openclaw-muse-cli",
-  "version": "0.2.0",
+  "version": "0.4.0",
   "type": "module",
   "scripts": {
-    "test": "node test/parse.test.mjs"
+    "test": "node test/parse.test.mjs && node test/proxy.test.mjs"
   },
   "openclaw": {
     "extensions": [
