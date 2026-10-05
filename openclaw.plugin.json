@@ -1,0 +1,24 @@
+{
+  "id": "muse-cli",
+  "name": "Muse CLI",
+  "description": "Run Muse Spark via the local muse CLI subscription",
+  "categories": [
+    "agent-runtimes"
+  ],
+  "cliBackends": [
+    "muse-cli"
+  ],
+  "setup": {
+    "cliBackends": [
+      "muse-cli"
+    ],
+    "requiresRuntime": false
+  },
+  "activation": {
+    "onStartup": true
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false
+  }
+}

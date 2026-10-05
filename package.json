@@ -1,0 +1,21 @@
+{
+  "name": "openclaw-muse-cli",
+  "version": "0.2.0",
+  "type": "module",
+  "scripts": {
+    "test": "node test/parse.test.mjs"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ],
+    "compat": {
+      "pluginApi": ">=2026.3.24-beta.2",
+      "minGatewayVersion": "2026.3.24-beta.2"
+    },
+    "build": {
+      "openclawVersion": "2026.9.5",
+      "pluginSdkVersion": "2026.9.5"
+    }
+  }
+}
