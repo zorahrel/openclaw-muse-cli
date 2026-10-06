@@ -28,6 +28,12 @@ plugin cannot stage working credentials by itself: it must piggyback the
 `gemini-system-settings` mode and re-read core-internal staged files, which
 plugins must never do.
 
+Side observation (same area): a single retired/reloaded plugin currently fails
+the entire loopback `tools/list` (`request handling failed: Plugin X was
+reloaded or disabled`), blinding every MCP backend until a gateway restart.
+Skipping the broken plugin instead of failing the whole list would make the
+bridge far more robust.
+
 ## Proposed solution
 
 A fourth `CliBundleMcpMode`, `muse-system-settings`, following the existing
