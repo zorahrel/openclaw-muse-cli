@@ -61,7 +61,9 @@ export function parseMuseLine(line: string) {
 
 // Flag base di `muse exec`: tool nativi ACCESI (shell+scrittura, parità
 // claude-cli che gira con --dangerously-skip-permissions). --disable-approval
-// tiene il run non interattivo (niente hang headless). Vietato riaggiungere
+// tiene il run non interattivo (niente hang headless); --disable-sandbox apre
+// rete/filesystem della shell (default proxy-only blocca il loopback verso il
+// gateway, EPERM sui tool browser: visto il 06/10). Vietato riaggiungere
 // --disable-shell/--disable-write: i turni DEVONO poter eseguire (NOSHELL 06/10).
 export const MUSE_EXEC_BASE_ARGS = [
   "exec",
@@ -70,6 +72,7 @@ export const MUSE_EXEC_BASE_ARGS = [
   "--disable-reminders",
   "--user-input-auto-resolve",
   "--disable-approval",
+  "--disable-sandbox",
 ];
 
 // Prefisso di sistema statico, letto al caricamento del plugin: `muse exec`
