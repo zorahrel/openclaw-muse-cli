@@ -1,5 +1,5 @@
 import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
-import { buildMuseCliBackend } from "./lib.ts";
+import { buildMuseCliBackend, readPluginConfig } from "./lib.ts";
 
 export default definePluginEntry({
   id: "muse-cli",
