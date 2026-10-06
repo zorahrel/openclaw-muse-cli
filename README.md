@@ -76,7 +76,9 @@ backend, so the plugin prepends a static prefix, rebuilt on every reload:
   key is minted at execute time, after staging, so only the proxy (a child of
   `muse`) can read the fresh attempt file, matched by the stable turn token
   passed via argv. muse expands no `${}` placeholders and inherits no env into
-  stdio servers (probed): there is no shortcut.
+  stdio servers (probed): there is no shortcut. Once core ships a native
+  `muse-system-settings` mode (see `UPSTREAM-ISSUE.md`), the proxy goes away
+  and the backend only declares the mode.
 - `ownsNativeCompaction: true` (backend sessions are single-use).
 - `promptChars` in the log is pre-transform: it does not measure the prefix.
 
