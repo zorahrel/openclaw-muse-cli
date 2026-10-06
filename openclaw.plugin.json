@@ -12,7 +12,7 @@
     "cliBackends": [
       "muse-cli"
     ],
-    "requiresRuntime": false
+    "requiresRuntime": true
   },
   "activation": {
     "onStartup": true

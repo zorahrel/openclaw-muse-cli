@@ -2,6 +2,7 @@ import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, 
 import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
 
 // Parser dei record terminali di `muse exec --json` (record grezzi di
 // session-log). Solo record terminale: niente streaming dei delta.
@@ -288,6 +289,71 @@ export function stageMuseConfig(geminiSettingsPath: string, realConfigDir?: stri
     serverCount: Object.keys(servers).length,
     cleanup: async () => {
       rmSync(stagedXdg, { recursive: true, force: true });
+    },
+  };
+}
+
+// --- Descrittore backend ---
+// Unico builder per entry runtime (index.ts, con pluginConfig personale) e
+// setup (setup-api.ts, default generici): i path senza registry runtime
+// (agent exec embedded, discovery) risolvono da qui.
+export type MuseCliBackend = Parameters<OpenClawPluginApi["registerCliBackend"]>[0];
+
+export function buildMuseCliBackend(prefixOpts: SystemPrefixOptions): MuseCliBackend {
+  return {
+    id: "muse-cli",
+    liveTest: {
+      defaultModelRef: "muse-cli/muse-spark-1.3",
+      defaultImageProbe: false,
+      defaultMcpProbe: true,
+    },
+    nativeToolMode: "always-on",
+    // La compaction OpenClaw vuole una API key che non esiste (backend CLI);
+    // le sessioni backend sono monouso, nessun accumulo da compattare.
+    ownsNativeCompaction: true,
+    bundleMcp: true,
+    // Strategia gemini: il core scrive url + token già risolti in un file
+    // temporaneo; prepareExecution lo traduce per muse. Se il core offrirà
+    // una strategia nativa per muse si passa a quella.
+    bundleMcpMode: "gemini-system-settings",
+    // Hook solo ambiente/config: l'autenticazione è la subscription ambient di muse.
+    autoSelectAuthProfile: false,
+    // XDG_CONFIG_HOME staged per turno con i server MCP del core. Senza file
+    // staged (o senza server) il turno resta solo-testo, mai rotto.
+    prepareExecution: (ctx) => {
+      const stagedPath = ctx.env?.GEMINI_CLI_SYSTEM_SETTINGS_PATH;
+      if (!stagedPath) return null;
+      try {
+        const staged = stageMuseConfig(stagedPath);
+        if (staged.serverCount === 0) {
+          void staged.cleanup();
+          return null;
+        }
+        return { env: { XDG_CONFIG_HOME: staged.stagedXdg }, cleanup: staged.cleanup };
+      } catch (err) {
+        console.warn(`[muse-cli] staging MCP fallito, turno solo-testo: ${String(err)}`);
+        return null;
+      }
+    },
+    parseJsonlEvent: parseMuseLine,
+    textTransforms: {
+      input: [{ from: /^/, to: buildSystemPrefix(prefixOpts) }],
+    },
+    // Tool nativi accesi (shell+scrittura): parità con claude-cli, che gira
+    // con --dangerously-skip-permissions. --disable-approval nel base tiene il
+    // run non interattivo senza hang headless.
+    config: {
+      command: "muse",
+      args: [...MUSE_EXEC_BASE_ARGS, "{prompt}"],
+      resumeArgs: [...MUSE_EXEC_BASE_ARGS, "--session-id", "{sessionId}", "{prompt}"],
+      output: "jsonl",
+      input: "arg",
+      modelArg: "--model",
+      imageArg: "--image",
+      imageMode: "repeat",
+      imagePathScope: "workspace",
+      sessionMode: "existing",
+      serialize: true,
     },
   };
 }

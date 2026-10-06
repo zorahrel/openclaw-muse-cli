@@ -1,6 +1,6 @@
 {
   "name": "openclaw-muse-cli",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "Run Muse Spark inside OpenClaw via the local muse CLI subscription, with host MCP tools",
   "repository": "github:zorahrel/openclaw-muse-cli",
   "license": "MIT",
@@ -9,6 +9,7 @@
   "keywords": ["openclaw", "openclaw-plugin", "muse", "cli-backend"],
   "files": [
     "index.ts",
+    "setup-api.ts",
     "lib.ts",
     "proxy.mjs",
     "openclaw.plugin.json",
