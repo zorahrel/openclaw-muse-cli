@@ -60,25 +60,73 @@ export function parseMuseLine(line: string) {
 
 // Prefisso di sistema statico, letto al caricamento del plugin: `muse exec`
 // non ha --system e OpenClaw non reinietta il system per questo backend.
-// Si aggiorna a ogni reload del plugin.
-export function buildSystemPrefix(): string {
-  const parts = [
-    "Sei Jarvis, l'assistente personale di Attilio Cianci, e rispondi su WhatsApp. " +
-      "Il tuo testo finale È il messaggio inviato: diretto, conciso, italiano. Mai meta-commenti.",
-  ];
-  try {
-    const memPath = join(homedir(), ".openclaw", "MEMORY.md");
-    if (existsSync(memPath)) {
-      parts.push("Memoria di lungo periodo:\n" + readFileSync(memPath, "utf8").slice(0, 4000));
-    }
-    const storiaPath = join(homedir(), ".openclaw", "memory", "2026-10-05-storia.md");
-    if (existsSync(storiaPath)) {
-      parts.push("Storia precedente (da archivio):\n" + readFileSync(storiaPath, "utf8").slice(0, 6000));
-    }
-  } catch {
-    // senza memoria: resta il ruolo
+// Si aggiorna a ogni reload del plugin. Ruolo e memorie vengono dalla config
+// del plugin (default generico inglese, niente personale qui dentro).
+export interface MemoryFileRef {
+  path: string;
+  chars?: number;
+  header?: string;
+}
+
+export interface SystemPrefixOptions {
+  role?: string;
+  memoryFiles?: Array<string | MemoryFileRef>;
+  memoryChars?: number;
+  separator?: string;
+}
+
+export const DEFAULT_ROLE =
+  "You are a helpful personal assistant. " +
+  "Your final text IS the message sent: direct, concise.";
+export const DEFAULT_SEPARATOR = "--- Message ---";
+export const DEFAULT_MEMORY_CHARS = 4000;
+
+function asMemoryFileRef(v: unknown): MemoryFileRef | undefined {
+  if (typeof v === "string" && v) return { path: v };
+  if (!v || typeof v !== "object" || Array.isArray(v)) return undefined;
+  const r = v as Record<string, unknown>;
+  if (typeof r.path !== "string" || !r.path) return undefined;
+  const out: MemoryFileRef = { path: r.path };
+  if (typeof r.chars === "number" && r.chars > 0) out.chars = Math.floor(r.chars);
+  if (typeof r.header === "string" && r.header) out.header = r.header;
+  return out;
+}
+
+// Normalizza la config grezza del plugin (tollerante: tipi sbagliati ignorati).
+export function readPluginConfig(raw: unknown): SystemPrefixOptions {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const c = raw as Record<string, unknown>;
+  const out: SystemPrefixOptions = {};
+  if (typeof c.role === "string" && c.role) out.role = c.role;
+  if (Array.isArray(c.memoryFiles)) {
+    const files = c.memoryFiles.flatMap((v) => {
+      const ref = asMemoryFileRef(v);
+      return ref ? [ref] : [];
+    });
+    if (files.length > 0) out.memoryFiles = files;
   }
-  return parts.join("\n\n") + "\n\n--- Messaggio ---\n";
+  if (typeof c.memoryChars === "number" && c.memoryChars > 0) {
+    out.memoryChars = Math.floor(c.memoryChars);
+  }
+  if (typeof c.separator === "string" && c.separator) out.separator = c.separator;
+  return out;
+}
+
+export function buildSystemPrefix(opts: SystemPrefixOptions = {}): string {
+  const parts = [opts.role ?? DEFAULT_ROLE];
+  const fallbackChars = opts.memoryChars ?? DEFAULT_MEMORY_CHARS;
+  for (const item of opts.memoryFiles ?? []) {
+    const ref = typeof item === "string" ? { path: item } : item;
+    try {
+      if (!ref.path || !existsSync(ref.path)) continue;
+      const cap = ref.chars ?? fallbackChars;
+      const body = readFileSync(ref.path, "utf8").slice(0, cap);
+      parts.push(ref.header ? `${ref.header}\n${body}` : body);
+    } catch {
+      // file illeggibile: si salta
+    }
+  }
+  return parts.join("\n\n") + `\n\n${opts.separator ?? DEFAULT_SEPARATOR}\n`;
 }
 
 // --- Ponte MCP ---

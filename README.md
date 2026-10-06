@@ -1,85 +1,103 @@
 # openclaw-muse-cli
 
-Backend OpenClaw che esegue Muse Spark via la subscription dell'utente
-(`muse exec`, niente API key, marginali $0).
+OpenClaw backend that runs Muse Spark through your local `muse` CLI
+subscription. No API key, no per-token billing: if `muse exec` works on your
+machine, this backend works in OpenClaw — with host MCP tools.
 
-## Stato
+## Requirements
 
-Primario chat a pari provider (verificato 06/10/2026): risposta ~5s, resume
-fra turni, consegna WhatsApp diretta, 48 tool OpenClaw via ponte MCP con
-chiamate vere e resume funzionante.
+- `muse` CLI installed and logged in (`muse` uses your Meta subscription).
+- OpenClaw with CLI-backend plugin support (tested on 2026.9.5).
 
-## Installazione (locale)
+## Install
 
 ```bash
-openclaw plugins install --link ~/Projects/openclaw-muse-cli --force --accept-capabilities
+openclaw plugins install openclaw-muse-cli --accept-capabilities
 openclaw plugins enable muse-cli --accept-capabilities
 openclaw plugins inspect muse-cli --runtime   # loaded, zero diagnostics
 ```
 
-Mai `plugins reload` durante un turno attivo (fallisce): a gateway fermo.
+Or from a local checkout:
 
-## Configurazione
+```bash
+openclaw plugins install --link ./openclaw-muse-cli --force --accept-capabilities
+```
+
+Never `plugins reload` during an active turn (it fails): reload with the
+gateway idle, then restart the gateway (see limits).
+
+## Configuration
+
+Pick the model (agent default, entry, or existing session override):
 
 ```json5
 {
   agents: {
     defaults: {
-      model: { primary: "muse-cli/muse-spark-1.3", fallbacks: ["openai/gpt-6.1-sol"] },
+      model: { primary: "muse-cli/muse-spark-1.3" },
       models: { "muse-cli/muse-spark-1.3": { alias: "spark" } },
       modelPolicy: { allow: ["muse-cli/*"] }
-    },
-    entries: { main: { model: "muse-cli/muse-spark-1.3" } }
+    }
   }
 }
 ```
 
-Il routing vero per sessioni esistenti è l'override in
-`session_nodes.entry_json` (`providerOverride`/`modelOverride`, source=user):
-batte defaults ed entry. Nuove sessioni seguono la config.
+Optional plugin config (`plugins.entries.muse-cli.config`). `muse exec` has
+no `--system` flag and OpenClaw does not re-inject the system prompt for this
+backend, so the plugin prepends a static prefix, rebuilt on every reload:
 
-## Come funziona
+```json5
+{
+  // Role line. Default: a short generic English assistant prompt.
+  role: "You are Friday, the household assistant. Be brief.",
+  // Extra files appended after the role (absolute paths).
+  memoryFiles: [
+    "/home/you/.openclaw/MEMORY.md",
+    { path: "/home/you/.openclaw/memory/story.md", chars: 6000, header: "Archive:" }
+  ],
+  memoryChars: 4000,   // per-file cap when the entry sets none
+  separator: "--- Message ---"
+}
+```
 
-- `muse exec --json` emette record di session-log; il parser (`lib.ts`) usa
-  solo `run.terminal.completed` (testo finale + `stream.id` come session id).
-- Solo-testo: `--disable-shell --disable-write --disable-web-tools
-  --disable-reminders --user-input-auto-resolve`. I tool nativi restano spenti
-  perché le approvazioni headless si appendono per sempre (mai più output).
-- Contesto: `textTransforms.input` antepone ruolo + `MEMORY.md` + brief
-  storico (statico, si aggiorna con reload). `promptChars` nel log è
-  pre-transform: non misura il prefisso.
-- `ownsNativeCompaction: true` (le sessioni backend sono monouso).
-- Tool MCP: `bundleMcp` sul modo `gemini-system-settings` + `prepareExecution`
-  che allestisce `XDG_CONFIG_HOME` col server openclaw via **proxy stdio**
-  (`proxy.mjs`). La capture key nasce a execute-time, dopo lo staging, quindi
-  il proxy (figlio di muse) rilegge il file attempt fresco del turno,
-  identificato dal token stabile passato via argv. muse non espande `${}`
-  né eredita l'env ai server stdio (provato 06/10): niente scorciatoie.
-- Il parser mappa `tool.result` nella coppia `toolStart`+`toolResult` con
-  stesso `call_id` (lo stdout non lega il task: coppia sintetica, mai
-  riesecuzione).
+## How it works
 
-## Limiti noti
+- `muse exec --json` emits session-log records; the parser (`lib.ts`) uses
+  the terminal record (final text + `stream.id` as session id) and maps
+  `tool.result` to a `toolStart`+`toolResult` pair sharing the `call_id`
+  (already executed by the backend, never re-run by the host).
+- Native tools stay off (`--disable-shell --disable-write --disable-web-tools
+  --disable-reminders --user-input-auto-resolve`): headless approvals would
+  hang forever. MCP tools run free via `--disable-approval`, like the other
+  backends.
+- MCP bridge: `bundleMcp` on the `gemini-system-settings` strategy plus a
+  `prepareExecution` hook that stages a per-turn `XDG_CONFIG_HOME` with the
+  `openclaw` server behind a stdio proxy (`proxy.mjs`). The loopback capture
+  key is minted at execute time, after staging, so only the proxy (a child of
+  `muse`) can read the fresh attempt file, matched by the stable turn token
+  passed via argv. muse expands no `${}` placeholders and inherits no env into
+  stdio servers (probed): there is no shortcut.
+- `ownsNativeCompaction: true` (backend sessions are single-use).
+- `promptChars` in the log is pre-transform: it does not measure the prefix.
 
-- **Dopo `plugins reload` riavviare il gateway** (`launchctl kickstart -k`):
-  il reload manda in pensione l'inventario plugin del loopback MCP e i
-  `tools/list` falliscono finché non si riavvia (visto 06/10, quirk upstream).
-- **Token del turno in argv del proxy**: visibile in `ps` finché gira il
-  turno; revocato a fine turno. Equivalente al file attempt su disco.
-- **Usage sempre zero**: i token viaggiano solo nel session-log su disco,
-  mai sullo stdout `--json` (verificato: 30 record, zero righe token).
-  Irrilevante a subscription flat.
-- **Niente voce in `models.providers`**: registrarla chiede API key o fallisce
-  (fatale per compaction). Volutamente assente.
-- **Immagini**: trasporto `--image` verificato a livello CLI; giro completo
-  da allegato canale mai provato (agent CLI non allega).
-- **Compaction nativa** su catene resume lunghe mai osservata.
-- Ogni verifica con `openclaw agent --session-key` avvelena il resume del
-  turno canale dopo (provenance diversa → `invalidated:message-policy`):
-  le prove vanno su sessioni usa-e-getta.
+## Known limits
+
+- **Restart the gateway after `plugins reload`** (`launchctl kickstart -k`
+  on macOS): reload retires the MCP loopback plugin inventory and `tools/list`
+  fails until restart (upstream quirk).
+- **Turn token in proxy argv**: visible in `ps` while the turn runs, revoked
+  afterwards. Equivalent to the attempt file on disk.
+- **Usage always zero**: tokens travel only in the on-disk session log, never
+  on `--json` stdout. Irrelevant on a flat subscription.
+- **No `models.providers` entry**: registering one asks for an API key or
+  fails (fatal for compaction). Deliberately absent.
+- **Images**: `--image` transport verified at CLI level; full trip from a
+  channel attachment untested (the agent CLI cannot attach).
+- **Native resume chains** (`muse` sessions) are the source of truth for
+  history; the OpenClaw transcript keeps the final text.
 
 ## Test
 
 ```bash
-npm test   # parse.test.mjs (25) + proxy.test.mjs (9, e2e contro finto server MCP)
+npm test   # parse.test.mjs (29) + proxy.test.mjs (9, e2e against a fake MCP server)
 ```

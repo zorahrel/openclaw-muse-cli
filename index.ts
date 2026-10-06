@@ -1,9 +1,15 @@
 import { definePluginEntry, type OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
-import { buildSystemPrefix, parseMuseLine, stageMuseConfig } from "./lib.ts";
+import {
+  buildSystemPrefix,
+  parseMuseLine,
+  readPluginConfig,
+  stageMuseConfig,
+  type SystemPrefixOptions,
+} from "./lib.ts";
 
 type Backend = Parameters<OpenClawPluginApi["registerCliBackend"]>[0];
 
-function buildMuseCliBackend(): Backend {
+function buildMuseCliBackend(prefixOpts: SystemPrefixOptions): Backend {
   return {
     id: "muse-cli",
     liveTest: {
@@ -41,7 +47,7 @@ function buildMuseCliBackend(): Backend {
     },
     parseJsonlEvent: parseMuseLine,
     textTransforms: {
-      input: [{ from: /^/, to: buildSystemPrefix() }],
+      input: [{ from: /^/, to: buildSystemPrefix(prefixOpts) }],
     },
     // Tool nativi spenti (approvazioni headless appese: visto il 05/10);
     // i tool MCP girano liberi con --disable-approval, come gli altri backend.
@@ -88,6 +94,6 @@ export default definePluginEntry({
   name: "Muse CLI",
   description: "Run Muse Spark via the local muse CLI subscription",
   register(api) {
-    api.registerCliBackend(buildMuseCliBackend());
+    api.registerCliBackend(buildMuseCliBackend(readPluginConfig(api.pluginConfig)));
   },
 });

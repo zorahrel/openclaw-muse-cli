@@ -2,7 +2,7 @@ import { strict as assert } from "node:assert";
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { buildMuseSettings, buildSystemPrefix, extractMcpServers, parseMuseLine, proxyScriptPath, stageMuseConfig, withProxy } from "../lib.ts";
+import { buildMuseSettings, buildSystemPrefix, DEFAULT_ROLE, DEFAULT_SEPARATOR, extractMcpServers, parseMuseLine, proxyScriptPath, readPluginConfig, stageMuseConfig, withProxy } from "../lib.ts";
 
 // Forme reali registrate il 05/10 da `muse exec --json`.
 const completed = JSON.stringify({
@@ -41,7 +41,23 @@ const noSession = JSON.stringify({
 assert.deepEqual(parseMuseLine(noSession), { kind: "result", text: "x" });
 
 const prefix = buildSystemPrefix();
-assert.ok(prefix.includes("Jarvis") && prefix.endsWith("--- Messaggio ---\n"));
+assert.ok(prefix.startsWith(DEFAULT_ROLE) && prefix.endsWith(`${DEFAULT_SEPARATOR}\n`));
+
+// Prefisso personalizzato con file memoria, header e cap (replica setup reale).
+const memDir = mkdtempSync(join(tmpdir(), "muse-mem-"));
+writeFileSync(join(memDir, "a.md"), "AAA");
+writeFileSync(join(memDir, "b.md"), "BBBBBBBBBB");
+const custom = buildSystemPrefix({
+  role: "R",
+  memoryFiles: [{ path: join(memDir, "a.md"), header: "H1:" }, { path: join(memDir, "b.md"), chars: 4 }, join(memDir, "missing.md")],
+  separator: "--- S ---",
+});
+assert.equal(custom, "R\n\nH1:\nAAA\n\nBBBB\n\n--- S ---\n");
+
+// Config grezza: tollerante ai tipi sbagliati.
+assert.deepEqual(readPluginConfig(null), {});
+assert.deepEqual(readPluginConfig({ role: 42, separator: "", memoryChars: -1, memoryFiles: [42, { path: "" }] }), {});
+assert.deepEqual(readPluginConfig({ role: "R", memoryChars: 100.9 }), { role: "R", memoryChars: 100 });
 
 // Forma reale registrata il 06/10 dal finto server MCP (probe_echo).
 const toolResult = JSON.stringify({
@@ -134,4 +150,4 @@ assert.deepEqual(withProxy({ other: {} }), { other: {} });
 assert.deepEqual(withProxy({ openclaw: { url: "http://x/mcp" } }), { openclaw: { url: "http://x/mcp" } });
 assert.ok(proxyScriptPath().endsWith("proxy.mjs") && existsSync(proxyScriptPath()));
 
-console.log("parse.test.mjs: 25 assertions OK");
+console.log("parse.test.mjs: 29 assertions OK");

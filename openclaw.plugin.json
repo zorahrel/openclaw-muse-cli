@@ -19,6 +19,39 @@
   },
   "configSchema": {
     "type": "object",
-    "additionalProperties": false
+    "additionalProperties": false,
+    "properties": {
+      "role": {
+        "type": "string",
+        "description": "Role line prepended to every prompt (muse exec has no --system)."
+      },
+      "memoryFiles": {
+        "type": "array",
+        "description": "Absolute file paths appended after the role.",
+        "items": {
+          "anyOf": [
+            { "type": "string" },
+            {
+              "type": "object",
+              "required": ["path"],
+              "additionalProperties": false,
+              "properties": {
+                "path": { "type": "string" },
+                "chars": { "type": "number" },
+                "header": { "type": "string" }
+              }
+            }
+          ]
+        }
+      },
+      "memoryChars": {
+        "type": "number",
+        "description": "Per-file char cap when the entry sets none (default 4000)."
+      },
+      "separator": {
+        "type": "string",
+        "description": "Line between prefix and user message."
+      }
+    }
   }
 }
