@@ -1,6 +1,7 @@
 import { definePluginEntry, type OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
 import {
   buildSystemPrefix,
+  MUSE_EXEC_BASE_ARGS,
   parseMuseLine,
   readPluginConfig,
   stageMuseConfig,
@@ -49,34 +50,13 @@ function buildMuseCliBackend(prefixOpts: SystemPrefixOptions): Backend {
     textTransforms: {
       input: [{ from: /^/, to: buildSystemPrefix(prefixOpts) }],
     },
-    // Tool nativi spenti (approvazioni headless appese: visto il 05/10);
-    // i tool MCP girano liberi con --disable-approval, come gli altri backend.
+    // Tool nativi accesi (shell+scrittura): parità con claude-cli, che gira
+    // con --dangerously-skip-permissions. --disable-approval nel base tiene il
+    // run non interattivo senza hang headless.
     config: {
       command: "muse",
-      args: [
-        "exec",
-        "--json",
-        "--disable-shell",
-        "--disable-write",
-        "--disable-web-tools",
-        "--disable-reminders",
-        "--user-input-auto-resolve",
-        "--disable-approval",
-        "{prompt}",
-      ],
-      resumeArgs: [
-        "exec",
-        "--json",
-        "--disable-shell",
-        "--disable-write",
-        "--disable-web-tools",
-        "--disable-reminders",
-        "--user-input-auto-resolve",
-        "--disable-approval",
-        "--session-id",
-        "{sessionId}",
-        "{prompt}",
-      ],
+      args: [...MUSE_EXEC_BASE_ARGS, "{prompt}"],
+      resumeArgs: [...MUSE_EXEC_BASE_ARGS, "--session-id", "{sessionId}", "{prompt}"],
       output: "jsonl",
       input: "arg",
       modelArg: "--model",

@@ -66,10 +66,10 @@ backend, so the plugin prepends a static prefix, rebuilt on every reload:
   the terminal record (final text + `stream.id` as session id) and maps
   `tool.result` to a `toolStart`+`toolResult` pair sharing the `call_id`
   (already executed by the backend, never re-run by the host).
-- Native tools stay off (`--disable-shell --disable-write --disable-web-tools
-  --disable-reminders --user-input-auto-resolve`): headless approvals would
-  hang forever. MCP tools run free via `--disable-approval`, like the other
-  backends.
+- Native tools stay on (shell + write, like `claude-cli` with
+  `--dangerously-skip-permissions`); only web tools and reminders are off.
+  `--disable-approval` keeps the run non-interactive, so headless approvals
+  never hang. MCP tools run free, like the other backends.
 - MCP bridge: `bundleMcp` on the `gemini-system-settings` strategy plus a
   `prepareExecution` hook that stages a per-turn `XDG_CONFIG_HOME` with the
   `openclaw` server behind a stdio proxy (`proxy.mjs`). The loopback capture

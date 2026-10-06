@@ -58,6 +58,19 @@ export function parseMuseLine(line: string) {
   return null;
 }
 
+// Flag base di `muse exec`: tool nativi ACCESI (shell+scrittura, parità
+// claude-cli che gira con --dangerously-skip-permissions). --disable-approval
+// tiene il run non interattivo (niente hang headless). Vietato riaggiungere
+// --disable-shell/--disable-write: i turni DEVONO poter eseguire (NOSHELL 06/10).
+export const MUSE_EXEC_BASE_ARGS = [
+  "exec",
+  "--json",
+  "--disable-web-tools",
+  "--disable-reminders",
+  "--user-input-auto-resolve",
+  "--disable-approval",
+];
+
 // Prefisso di sistema statico, letto al caricamento del plugin: `muse exec`
 // non ha --system e OpenClaw non reinietta il system per questo backend.
 // Si aggiorna a ogni reload del plugin. Ruolo e memorie vengono dalla config
