@@ -1,8 +1,8 @@
 import { strict as assert } from "node:assert";
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { buildMuseSettings, buildSystemPrefix, DEFAULT_ROLE, DEFAULT_SEPARATOR, extractMcpServers, parseMuseLine, proxyScriptPath, readPluginConfig, stageMuseConfig, withProxy } from "../lib.ts";
+import { buildSystemPrefix, DEFAULT_ROLE, DEFAULT_SEPARATOR, parseMuseLine, readPluginConfig } from "../lib.js";
 
 // Forme reali registrate il 05/10 da `muse exec --json`.
 const completed = JSON.stringify({
@@ -92,62 +92,4 @@ const intent = JSON.stringify({
 });
 assert.equal(parseMuseLine(intent), null);
 
-// Forma del file staged dal core (url + header/token già risolti).
-const staged = {
-  mcpServers: {
-    openclaw: {
-      type: "http",
-      url: "http://127.0.0.1:18789/mcp",
-      headers: { Authorization: "Bearer tok", "x-openclaw-cli-capture-key": "cap" },
-    },
-  },
-};
-assert.deepEqual(extractMcpServers(staged), {
-  openclaw: {
-    type: "streamable-http",
-    url: "http://127.0.0.1:18789/mcp",
-    headers: { Authorization: "Bearer tok", "x-openclaw-cli-capture-key": "cap" },
-  },
-});
-assert.deepEqual(extractMcpServers(null), {});
-assert.deepEqual(extractMcpServers({ mcpServers: { bad: "nope", empty: {} } }), { empty: {} });
-
-assert.deepEqual(
-  buildMuseSettings({ schema_version: 1, model: "m", mcpServers: { old: { type: "stdio" } } }, { fresh: {} }),
-  { schema_version: 1, model: "m", mcpServers: { old: { type: "stdio" }, fresh: {} } },
-);
-assert.deepEqual(buildMuseSettings(null, { a: {} }), { mcpServers: { a: {} } });
-
-// Staging vero su dir temporanee, con cleanup verificata.
-const fakeReal = mkdtempSync(join(tmpdir(), "muse-real-"));
-writeFileSync(join(fakeReal, "settings.json"), JSON.stringify({ schema_version: 1 }));
-writeFileSync(join(fakeReal, "auth.json"), "{}");
-const geminiFile = join(mkdtempSync(join(tmpdir(), "gemini-")), "settings.json");
-writeFileSync(geminiFile, JSON.stringify(staged));
-const stagedCfg = stageMuseConfig(geminiFile, fakeReal);
-assert.equal(stagedCfg.serverCount, 1);
-const written = JSON.parse(readFileSync(join(stagedCfg.stagedXdg, "muse", "settings.json"), "utf8"));
-// openclaw viaggia via proxy stdio (capture key a execute-time), niente url/header.
-assert.equal(written.mcpServers.openclaw.command, process.execPath);
-assert.deepEqual(written.mcpServers.openclaw.args.slice(0, 2), [proxyScriptPath(), "openclaw"]);
-assert.equal(written.mcpServers.openclaw.args[2], "tok");
-assert.ok(existsSync(join(stagedCfg.stagedXdg, "muse", "auth.json")));
-await stagedCfg.cleanup();
-assert.ok(!existsSync(stagedCfg.stagedXdg));
-
-const proxied = withProxy(
-  {
-    openclaw: { type: "streamable-http", url: "http://x/mcp", headers: { Authorization: "Bearer tok" } },
-    other: { command: "s" },
-  },
-  "/tmp/stage",
-);
-assert.equal(proxied.openclaw.command, process.execPath);
-assert.deepEqual(proxied.openclaw.args, [proxyScriptPath(), "openclaw", "tok", "/tmp/stage"]);
-assert.deepEqual(proxied.other, { command: "s" });
-assert.deepEqual(withProxy({ other: {} }), { other: {} });
-// Senza token: invariato (diretto).
-assert.deepEqual(withProxy({ openclaw: { url: "http://x/mcp" } }), { openclaw: { url: "http://x/mcp" } });
-assert.ok(proxyScriptPath().endsWith("proxy.mjs") && existsSync(proxyScriptPath()));
-
-console.log("parse.test.mjs: 29 assertions OK");
+console.log("parse.test.mjs: 15 assertions OK");

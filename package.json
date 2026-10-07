@@ -1,34 +1,43 @@
 {
   "name": "openclaw-muse-cli",
-  "version": "0.5.3",
-  "description": "Run Muse Spark inside OpenClaw via the local muse CLI subscription, with host MCP tools",
+  "version": "0.7.0",
+  "description": "Run Muse Spark inside OpenClaw via the local muse CLI subscription",
   "repository": "github:zorahrel/openclaw-muse-cli",
   "license": "MIT",
   "author": "Attilio Cianci",
   "type": "module",
-  "keywords": ["openclaw", "openclaw-plugin", "muse", "cli-backend"],
+  "keywords": [
+    "openclaw",
+    "openclaw-plugin",
+    "muse",
+    "cli-backend"
+  ],
   "files": [
-    "index.ts",
-    "setup-api.ts",
-    "lib.ts",
-    "proxy.mjs",
+    "index.js",
+    "setup-api.js",
+    "lib.js",
     "openclaw.plugin.json",
     "README.md",
-    "LICENSE"
+    "CHANGELOG.md",
+    "VALIDATION.md",
+    "LICENSE",
+    "execution.mjs"
   ],
   "engines": {
-    "node": ">=18"
+    "node": ">=24.16.0 <25 || >=26.1.0"
   },
   "scripts": {
-    "test": "node test/parse.test.mjs && node test/proxy.test.mjs && node test/backend-args.test.mjs"
+    "build": "node scripts/build.mjs",
+    "prepack": "node scripts/build.mjs",
+    "test": "node scripts/build.mjs && node test/parse.test.mjs && node test/backend-args.test.mjs && node test/execution.test.mjs"
   },
   "openclaw": {
     "extensions": [
-      "./index.ts"
+      "./index.js"
     ],
     "compat": {
-      "pluginApi": ">=2026.3.24-beta.2",
-      "minGatewayVersion": "2026.3.24-beta.2"
+      "pluginApi": ">=2026.9.5",
+      "minGatewayVersion": "2026.9.5"
     },
     "build": {
       "openclawVersion": "2026.9.5",

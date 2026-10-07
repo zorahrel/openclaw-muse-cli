@@ -1,8 +1,8 @@
 import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
-import { buildMuseCliBackend } from "./lib.ts";
+import { buildMuseCliBackend, readPluginConfig } from "./lib.ts";
 
 // Entry setup leggera (come extensions/anthropic/setup-api.ts): stesso
-// descrittore, default generici senza pluginConfig personale. Serve ai path
+// descrittore e pluginConfig del runtime. Serve ai path
 // che risolvono il backend senza registry runtime (agent exec embedded,
 // discovery): senza questo file danno "Unknown CLI backend: muse-cli".
 export default definePluginEntry({
@@ -10,6 +10,6 @@ export default definePluginEntry({
   name: "Muse CLI Setup",
   description: "Lightweight Muse CLI setup hooks",
   register(api) {
-    api.registerCliBackend(buildMuseCliBackend({}));
+    api.registerCliBackend(buildMuseCliBackend(readPluginConfig(api.pluginConfig)));
   },
 });

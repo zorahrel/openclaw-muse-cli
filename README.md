@@ -1,30 +1,41 @@
 # openclaw-muse-cli
 
 OpenClaw backend that runs Muse Spark through your local `muse` CLI
-subscription. No API key, no per-token billing: if `muse exec` works on your
-machine, this backend works in OpenClaw — with host MCP tools.
+login. Community adapter maintained by Attilio Cianci, using OpenClaw's
+standard CLI-backend SDK. No API-provider configuration is required.
 
 ## Requirements
 
-- `muse` CLI installed and logged in (`muse` uses your Meta subscription).
-- OpenClaw with CLI-backend plugin support (tested on 2026.9.5).
+- `muse` CLI installed and logged in (tested with Muse Code 1.4.3).
+- OpenClaw 2026.9.5 or newer. Earlier SDK versions are not supported by this release.
+- A Node.js version supported by OpenClaw: 24.16+ on the 24.x line, or 26.1+.
 
 ## Install
 
 ```bash
-openclaw plugins install openclaw-muse-cli --accept-capabilities
+curl -fL -o openclaw-muse-cli-0.7.0.tgz \
+  https://github.com/zorahrel/openclaw-muse-cli/releases/download/v0.7.0/openclaw-muse-cli-0.7.0.tgz
+openclaw plugins install ./openclaw-muse-cli-0.7.0.tgz --force --accept-capabilities
 openclaw plugins enable muse-cli --accept-capabilities
+openclaw gateway restart
 openclaw plugins inspect muse-cli --runtime   # loaded, zero diagnostics
 ```
 
-Or from a local checkout:
+Or build a source checkout using Node.js, then link it:
 
 ```bash
-openclaw plugins install --link ./openclaw-muse-cli --force --accept-capabilities
+git clone --branch v0.7.0 https://github.com/zorahrel/openclaw-muse-cli.git
+cd openclaw-muse-cli
+npm run build
+openclaw plugins install --link . --force --accept-capabilities
 ```
 
-Never `plugins reload` during an active turn (it fails): reload with the
-gateway idle, then restart the gateway (see limits).
+Install or upgrade while the gateway is idle, then restart it. The distribution
+is on [GitHub Releases](https://github.com/zorahrel/openclaw-muse-cli/releases);
+there is currently no package published as `openclaw-muse-cli` on npm.
+
+When upgrading from 0.5.x, set the per-model thinking parameter shown below.
+The old MCP proxy is no longer used; no OpenClaw core patch is needed.
 
 ## Configuration
 
@@ -35,16 +46,16 @@ Pick the model (agent default, entry, or existing session override):
   agents: {
     defaults: {
       model: { primary: "muse-cli/muse-spark-1.3" },
-      models: { "muse-cli/muse-spark-1.3": { alias: "spark" } },
+      models: { "muse-cli/muse-spark-1.3": { alias: "spark", params: { thinking: "high" } } },
       modelPolicy: { allow: ["muse-cli/*"] }
     }
   }
 }
 ```
 
-Optional plugin config (`plugins.entries.muse-cli.config`). `muse exec` has
-no `--system` flag and OpenClaw does not re-inject the system prompt for this
-backend, so the plugin prepends a static prefix, rebuilt on every reload:
+Optional plugin config (`plugins.entries.muse-cli.config`). Role and memory
+files supplement the full OpenClaw system prompt and are read on each turn.
+Use a channel-neutral role: the current channel comes from OpenClaw.
 
 ```json5
 {
@@ -69,28 +80,37 @@ backend, so the plugin prepends a static prefix, rebuilt on every reload:
 - Native tools stay on (shell + write, like `claude-cli` with
   `--dangerously-skip-permissions`); only web tools and reminders are off.
   `--disable-approval` keeps the run non-interactive, so headless approvals
-  never hang. MCP tools run free, like the other backends.
-- MCP bridge: `bundleMcp` on the `gemini-system-settings` strategy plus a
-  `prepareExecution` hook that stages a per-turn `XDG_CONFIG_HOME` with the
-  `openclaw` server behind a stdio proxy (`proxy.mjs`). The loopback capture
-  key is minted at execute time, after staging, so only the proxy (a child of
-  `muse`) can read the fresh attempt file, matched by the stable turn token
-  passed via argv. muse expands no `${}` placeholders and inherits no env into
-  stdio servers (probed): there is no shortcut. Once core ships a native
-  `muse-system-settings` mode (see `UPSTREAM-ISSUE.md`), the proxy goes away
-  and the backend only declares the mode.
-- `ownsNativeCompaction: true` (backend sessions are single-use).
+  never hang.
+- Uses OpenClaw's standard `registerCliBackend` / `prepareExecution.execute`
+  contract. OpenClaw owns turn admission, session queue, prompt construction,
+  tool authority, MCP capture, watchdog and history. The command remains `muse`.
+- Each turn gets private native settings; auth/trust/skills link to the existing
+  subscription configuration. At execution time, the adapter installs the full
+  host system prompt as Muse's `run.system_prompt` and consumes the core's
+  current MCP attempt settings, translating HTTP transport to Muse's dialect.
+  No separate launcher, MCP proxy or invented CLI flags.
+- The execution stream preserves Muse records and marks terminal events with
+  the SDK's `type:result`; the parser maps the actual final text and tool results.
+- Prompt and MCP capture refresh on resume. Different sessions run concurrently
+  (`serialize:false`); OpenClaw's session lane still prevents overlap within one.
+- The standard manifest model catalog declares reasoning and the supported effort levels.
+  Configure per-model `params.thinking: "high"` to keep the native default; an unknown
+  CLI model otherwise defaults to off in OpenClaw.
+- Explicit OpenClaw thinking levels map to Muse's `--reasoning-effort` (off→minimal, the lowest level accepted by Meta);
+  adaptive/unspecified use Muse's native default.
+- `ownsNativeCompaction:true`: Muse handles its own compaction.
 - `promptChars` in the log is pre-transform: it does not measure the prefix.
 
 ## Known limits
 
-- **Restart the gateway after `plugins reload`** (`launchctl kickstart -k`
-  on macOS): reload retires the MCP loopback plugin inventory and `tools/list`
-  fails until restart (upstream quirk).
-- **Turn token in proxy argv**: visible in `ps` while the turn runs, revoked
-  afterwards. Equivalent to the attempt file on disk.
+- **Promise follow-through**: correct prompt, tools and reasoning transport do
+  not guarantee that Muse starts work it promises. Private replay checks still
+  reproduced a delayed promise at `max` with zero tool calls or queued/running
+  tasks. An explicit request did execute tools and produce a verified artifact.
+  Raising effort alone does not fix autonomous coordination; use concrete tasks
+  and verify the output. See the [validation record](VALIDATION.md).
 - **Usage always zero**: tokens travel only in the on-disk session log, never
-  on `--json` stdout. Irrelevant on a flat subscription.
+  on `--json` stdout. OpenClaw usage counters therefore do not measure Muse usage.
 - **No `models.providers` entry**: registering one asks for an API key or
   fails (fatal for compaction). Deliberately absent.
 - **Images**: `--image` transport verified at CLI level; full trip from a
@@ -98,8 +118,11 @@ backend, so the plugin prepends a static prefix, rebuilt on every reload:
 - **Native resume chains** (`muse` sessions) are the source of truth for
   history; the OpenClaw transcript keeps the final text.
 
-## Test
+## Test from a source checkout
 
 ```bash
-npm test   # parse.test.mjs (29) + proxy.test.mjs (9, e2e against a fake MCP server)
+npm test   # parser, SDK contract, fresh MCP, system/resume/context/abort
+npm pack   # builds the JavaScript runtime and creates the installable archive
 ```
+
+Release changes are recorded in [CHANGELOG.md](CHANGELOG.md).

@@ -1,5 +1,5 @@
 import { strict as assert } from "node:assert";
-import { buildMuseCliBackend, MUSE_EXEC_BASE_ARGS } from "../lib.ts";
+import { buildMuseCliBackend, MUSE_EXEC_BASE_ARGS } from "../lib.js";
 
 // I turni DEVONO poter eseguire (parità claude-cli): vietati i flag che
 // spengono shell/scrittura (regressione NOSHELL del 06/10).
@@ -17,4 +17,14 @@ assert.equal(backend.config.command, "muse");
 assert.ok(!backend.config.args.includes("--disable-shell"), "args senza disable-shell");
 assert.ok(!backend.config.args.includes("--disable-write"), "args senza disable-write");
 assert.ok(backend.config.resumeArgs.includes("--session-id"), "resume con session-id");
+assert.equal(backend.bundleMcp, true);
+assert.equal(backend.config.serialize, false);
+assert.equal(backend.config.systemPromptWhen, "always");
+assert.equal(backend.config.systemPromptFileArg, undefined);
+for (const [thinkingLevel, native] of [["low", "low"], ["max", "max"], ["off", "minimal"]]) {
+  assert.deepEqual(backend.resolveExecutionArgs({ baseArgs: ["exec"], thinkingLevel }), ["exec", "--reasoning-effort", native]);
+}
+const execution = backend.prepareExecution({ workspaceDir: process.cwd(), provider: "muse-cli", modelId: "muse-spark-1.3" });
+assert.equal(typeof execution.execute, "function");
+await execution.cleanup();
 console.log("backend-args: ok");
